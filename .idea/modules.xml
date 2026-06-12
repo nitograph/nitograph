@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/fiber-ai.iml" filepath="$PROJECT_DIR$/.idea/fiber-ai.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/nitograph.iml" filepath="$PROJECT_DIR$/.idea/nitograph.iml" />
     </modules>
   </component>
 </project>
