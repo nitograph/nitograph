@@ -86,6 +86,10 @@ python train_ai.py ^
   --ff-dim 384
 ```
 
+```bash
+python train_ai.py --epochs 10 --batch-size 16 --embed-dim 128 --heads 4 --layers 3 --ff-dim 384
+```
+
 В Linux/macOS замените `^` на `\`.
 
 ### 3. Сгенерировать цифру
