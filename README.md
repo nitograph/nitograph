@@ -1,26 +1,41 @@
-# String-Art AI Generator — рабочий MVP
+# Nitograph
 
-Локальный проект превращает MNIST в последовательности гвоздей, обучает
-небольшой causal Transformer и генерирует новые continuous string-art пути
-для цифр 0–9.
+**Nitograph turns MNIST digits into neon string-art drawings, then trains a small class-conditioned Transformer to generate new continuous nail sequences.**
 
-## Что исправлено относительно первоначального варианта
+[Русский](README.ru.md) | [中文](README.zh.md)
 
-- Метки цифр имеют отдельные token ID и не пересекаются с гвоздями `0..255`.
-- Добавлены `EOS` и `PAD`, поэтому последовательности могут иметь разную длину.
-- Все линии Брезенхема вычисляются один раз, а не заново для каждого кандидата.
-- Скоринг ослабляет смещение в пользу длинных хорд.
-- Запрещены слишком короткие переходы, мгновенный возврат `A -> B -> A`
-  и недавние повторения ребра.
-- Датасет хранится в сжатом `.npz`, а не медленном текстовом файле.
-- Есть validation split, AMP на CUDA, gradient clipping и best checkpoint.
-- Генерация использует temperature/top-k/repetition penalty, а не только argmax.
-- Рендер действительно может быть `4096 × 4096`: `8 inches × 512 DPI`.
-- Линии рендерятся пакетно через `LineCollection`.
+![Dataset preview](images/dataset_preview_img.png)
 
-## Установка
+![Generated digit 7](images/digit_7_4k.png)
 
-Рекомендуется Python 3.11 или 3.12.
+## Why It Is Interesting
+
+Nitograph is not a prompt-to-image toy. It is a compact generative pipeline for a very specific physical representation: a single thread moving around a circular set of nails.
+
+- Converts MNIST digits into ordered nail-to-nail paths.
+- Trains an autoregressive Transformer on tokenized string-art sequences.
+- Samples new paths conditioned only on the digit class.
+- Renders crisp 4096x4096 neon output with batched Matplotlib line layers.
+- Saves the exact generated nail sequence as JSON, so the image is reproducible and portable.
+
+In short: **image -> string-art encoder -> sequence dataset -> causal Transformer -> generated thread path -> 4K render**.
+
+## Demo Assets
+
+This repository includes preview images in [`images/`](images):
+
+- [`images/dataset_preview_img.png`](images/dataset_preview_img.png) shows encoded dataset examples.
+- [`images/digit_7_4k.png`](images/digit_7_4k.png) shows a generated 4K output image.
+
+Model weights and a real generated output example are available in [`model_and_output_examples/`](model_and_output_examples):
+
+- [`model_and_output_examples/string_ai.pt`](model_and_output_examples/string_ai.pt) - trained checkpoint.
+- [`model_and_output_examples/digit_7_4k.png`](model_and_output_examples/digit_7_4k.png) - generated render.
+- [`model_and_output_examples/digit_7_4k.json`](model_and_output_examples/digit_7_4k.json) - exact nail sequence.
+
+## Installation
+
+Python 3.11 or 3.12 is recommended.
 
 ```bash
 python -m venv .venv
@@ -35,75 +50,63 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Для NVIDIA лучше поставить сборку PyTorch, подходящую вашей версии CUDA,
-по команде из официального установщика PyTorch, а затем остальные зависимости.
+For NVIDIA GPUs, install the PyTorch build that matches your CUDA version from the official PyTorch installer, then install the remaining dependencies.
 
-## Быстрый запуск
+## Quick Start
 
-### 1. Подготовить MVP-датасет
+### 1. Generate A Dataset
 
-```bash
-python prepare_dataset.py --samples 1000 --max-lines 180
-```
-
-Сначала разумно проверить небольшой прогон:
+Fast smoke run:
 
 ```bash
 python prepare_dataset.py --samples 100 --max-lines 120 --output smoke_dataset.npz
-python preview_dataset.py --dataset smoke_dataset.npz
+python preview_dataset.py --dataset smoke_dataset.npz --output dataset_preview.png
 ```
 
-Для более качественного эксперимента:
+Better training run:
 
 ```bash
-python prepare_dataset.py --samples 5000 --max-lines 220
+python prepare_dataset.py --samples 5000 --max-lines 240
+python preview_dataset.py --dataset string_dataset.npz --output dataset_preview.png
 ```
 
-Подготовка датасета обычно является самым медленным этапом. Точное время
-сильно зависит от CPU, числа изображений, гвоздей и линий.
+By default, the dataset builder creates canonical prototypes per digit. This works well because the model is conditioned by class label, not by a full source image.
 
-### 2. Обучить Transformer
+### 2. Train The Transformer
 
 ```bash
 python train_ai.py --epochs 15 --batch-size 32
 ```
 
-На слабой видеокарте:
+Low-memory GPU:
 
 ```bash
 python train_ai.py --epochs 15 --batch-size 8
 ```
 
-На CPU можно уменьшить модель:
-
-```bash
-python train_ai.py ^
-  --epochs 10 ^
-  --batch-size 16 ^
-  --embed-dim 128 ^
-  --heads 4 ^
-  --layers 3 ^
-  --ff-dim 384
-```
+CPU-friendly smaller model:
 
 ```bash
 python train_ai.py --epochs 10 --batch-size 16 --embed-dim 128 --heads 4 --layers 3 --ff-dim 384
 ```
 
-В Linux/macOS замените `^` на `\`.
+Training writes:
 
-### 3. Сгенерировать цифру
+- `string_ai.pt` - best validation checkpoint.
+- `string_ai_last.pt` - latest checkpoint.
+
+### 3. Generate A 4K Digit
 
 ```bash
 python generate.py 7
 ```
 
-Будут созданы:
+This creates:
 
-- `digit_7_4k.png` — изображение 4096×4096;
-- `digit_7_4k.json` — точная последовательность гвоздей.
+- `digit_7_4k.png` - 4096x4096 rendered output.
+- `digit_7_4k.json` - exact generated nail sequence.
 
-Другие варианты:
+Sampling examples:
 
 ```bash
 python generate.py 3 --temperature 0.70 --top-k 16 --seed 10
@@ -111,40 +114,78 @@ python generate.py 9 --temperature 1.00 --top-k 48 --seed 77
 python generate.py 4 --temperature 0 --top-k 1
 ```
 
-`temperature 0` включает greedy/argmax-режим. Он детерминирован, но чаще
-зацикливается и обычно выглядит беднее sampling-варианта.
+`--temperature 0` enables deterministic greedy decoding. It is reproducible, but sampling usually produces richer thread paths.
 
-## Структура
+## How It Works
+
+### String-Art Encoder
+
+`prepare_dataset.py` downloads MNIST, places nails on a circle, precomputes thick Bresenham nail-to-nail paths, and greedily chooses the next chord that improves reconstruction of the target digit.
+
+The encoder includes practical constraints:
+
+- minimum circular nail gap;
+- no immediate `A -> B -> A` reversal;
+- recent edge suppression;
+- length-normalized scoring;
+- false-positive penalty for overdrawn pixels;
+- compressed `.npz` dataset output.
+
+### Sequence Model
+
+`train_ai.py` trains a compact causal Transformer:
+
+- separate class tokens for digits `0..9`;
+- nail tokens `0..255`;
+- explicit `EOS` and `PAD` tokens;
+- validation split;
+- CUDA AMP when available;
+- gradient clipping;
+- best-checkpoint saving.
+
+### Renderer
+
+`generate.py` samples a nail sequence with temperature, top-k, and repetition penalty, then renders a 4K neon string-art image. The render uses batched `LineCollection` layers for glow and exports the nail path as JSON.
+
+## Project Structure
 
 ```text
-string_art_ai_mvp/
-├── geometry.py
-├── model.py
-├── prepare_dataset.py
-├── preview_dataset.py
-├── train_ai.py
-├── generate.py
+nitograph/
+├── geometry.py                 # nail geometry, path tables, encoder
+├── model.py                    # mini causal Transformer
+├── prepare_dataset.py          # MNIST -> tokenized string-art dataset
+├── preview_dataset.py          # dataset visual preview
+├── train_ai.py                 # training loop
+├── generate.py                 # sequence sampling and 4K rendering
+├── images/                     # README preview images
+├── model_and_output_examples/  # checkpoint and real output example
 ├── requirements.txt
-└── README.md
+├── README.md
+├── README.ru.md
+└── README.zh.md
 ```
 
-## Честное позиционирование проекта
+## Reproducibility Notes
 
-Это не text-to-image модель и не универсальный генератор картинок.
-Модель изучает распределение последовательностей гвоздей для десяти классов
-MNIST. Для GitHub/Habr лучше называть её:
+- Dataset generation and sampling accept `--seed`.
+- Generated JSON files store the digit, nail count, line count, sampling settings, seed, and full nail list.
+- Rendering size is controlled by `--size-inches` and `--dpi`; the default `8 * 512` produces 4096x4096 pixels.
 
-> Class-conditioned autoregressive string-art generator.
+## Honest Scope
 
-Самая сильная демонстрация: рядом показать исходный MNIST, результат
-детерминированного кодировщика и несколько разных AI-сэмплов одной цифры.
+Nitograph is a focused research/art MVP. It is not a universal image generator and it does not currently condition on arbitrary input images at generation time. The model learns a distribution of nail sequences for digit classes.
 
-## Следующий уровень
+That constraint is also what makes the project clean: the generated output is a real continuous path, not just pixels pretending to be string art.
 
-После MVP наиболее полезны:
+## Roadmap
 
-1. conditioning по embedding исходного изображения вместо одной цифры;
-2. обучение на EMNIST для букв;
-3. отдельный critic/raster loss, оценивающий реальный итоговый рисунок;
-4. beam search с геометрическим штрафом;
-5. экспорт последовательности в SVG и инструкции для физического станка.
+- Condition generation on an input image embedding, not only a digit label.
+- Train on EMNIST letters and custom symbols.
+- Add SVG export for plotters and physical string-art machines.
+- Add beam search with geometric penalties.
+- Add a raster critic or reconstruction-aware loss.
+- Build a small gallery script for generating many seeded variants.
+
+## Star The Project
+
+If you like compact generative models, algorithmic art, or physical-looking AI outputs, give Nitograph a star. It helps the project reach people who enjoy the same mix of geometry, deep learning, and visual craft.
